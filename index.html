@@ -49,6 +49,45 @@
 				color: black;
 				background-color: coral;
 			}
+			#score {
+				font-size: 80%;
+			}
+			#table {
+				overflow-y: scroll;
+				height: 500px;
+			} 
+
+			.flex {
+				display: flex;
+			}
+
+			#pingpong #field {
+			width: 720px;
+		}
+		#pingpong #joystick {
+			/* border: 1px solid black; */
+			margin: 0 auto;
+			width: 240px;
+		}
+		#pingpong input[type=range][orient=vertical] {
+			appearance: slider-vertical;
+			width: 100%;
+			height: 540px;
+			padding: 0 5px;
+		}
+		#pingpong #gamer {
+			height: 40px;
+			width: 300px;
+			line-height: 40px;
+			font-size: 19pt;
+		}
+		#pingpong #game_ping_pong_start {
+			height: 40px;
+			width: 300px;
+			line-height: 40px;
+			font-size: 19pt;
+		}
+			
 		</style>
 	</head>
 	<body>
@@ -103,14 +142,14 @@
 				<section data-markdown class="center">
 					<script type="text/template">
 						### Игра 1. Скоростная матрица
-						Правила игры: игра состоит из 25 ячеек (5х5), ячейки раскрашены в 7 цветов: красный, зелёный, голубой, чёрный, белый, желтый и случайный цвет. 24 ячейки раскрашиваются в 6 разных цветов по 4 ячейки каждый. 1 ячейка уникального цвета. С интервалом 300мс ячейки будут перемешиваться. Нужно среди всех цветов отыскать ячейку с уникальным цветом и кликнуть на неё, пока ячейки снова не перемешались. 
+						Правила игры: игра состоит из 25 ячеек (5х5), ячейки раскрашены в 7 цветов: красный, зелёный, голубой, чёрный, белый, желтый и случайный цвет. 24 ячейки раскрашиваются в 6 разных цветов по 4 ячейки каждый. 1 ячейка уникального цвета. С интервалом 800мс ячейки будут перемешиваться. Нужно среди всех цветов отыскать ячейку с уникальным цветом и кликнуть на неё, пока ячейки снова не перемешались. 
 					</script>
 				</section>
 				
 				<section data-markdown class="center">
 					<script type="text/template">
 						### Игра 1. Скоростная матрица
-						Начисление очков: за каждую правильно кликнутую ячейку игрок получает 500 баллов + количество оставшихся миллисекунд до перемешивания матрицы. При ошибочном нажатии вычитается 500 баллов + количество оставшихся миллисекунд до смены матрицы.
+						Начисление очков: за каждую правильно кликнутую ячейку игрок получает 1200 баллов + количество оставшихся миллисекунд до перемешивания матрицы. При ошибочном нажатии вычитается 1200 баллов + количество оставшихся миллисекунд до смены матрицы.
 					</script>
 				</section>
 				
@@ -146,8 +185,9 @@
 					</div>
 				</section>
 
-				<section>
+				<section id="game_matrix_table">
 					<h3>Турнирная таблица</h3>
+					<div id="table"></div>
 				</section>
 
 				<section data-markdown class="center">
@@ -180,12 +220,18 @@
 					<img src="kandinsky-download-1696001545627.png" alt="">
 				</section>
 
-				<section>
-					<h3>Турнирная таблица</h3>
-				</section>
-
-				<section>
-					<h3>Игровой джойстик</h3>
+				<section id="pingpong">
+					<h3>Игра 2. Пинг-понг</h3>
+					<div class="flex">
+						<div id="field">
+							<input type="name" id="gamer" value="renard" >
+							<input type="button" id="game_ping_pong_start" value="Присоедениться к игре" >
+							<canvas id="game_ping_pong" width="720" height="480"></canvas>
+						</div>
+						<div id="joystick">
+							<input type="range" min="75" max="480" value="240" orient="vertical" disabled/>
+						</div>
+					</div>
 				</section>
 
 				<section data-markdown class="center">
@@ -219,6 +265,10 @@
 		<script src="plugin/notes/notes.js"></script>
 		<script src="plugin/markdown/markdown.js"></script>
 		<script src="plugin/highlight/highlight.js"></script>
+		<script src="https://game.9pr.ru/socket.io/socket.io.js"></script>
+		<script src="pingpong/easel.js"></script>
+		<script src="pingpong/Tween.js"></script>
+
 		<script>
 			// More info about initialization & config:
 			// - https://revealjs.com/initialization/
@@ -283,6 +333,25 @@
 
 				fillField(element) {
 					element.innerHTML = this.field;
+					return this;
+				}
+
+				shuffleTd () {
+					for (let i = this.colors.length -1; i>0; i--) {
+						let j = Math.floor(Math.random()*(i+1));
+						[this.colors[i],this.colors[j]]= 
+						[this.colors[j],this.colors[i]];
+					}
+					return this;
+				}
+				
+				updateField(tds) {
+					for (let i=0;i< this.colors.length; i++) {
+						tds[i].style.backgroundColor = this.colors[i];
+
+					}
+
+					return this;
 				}
 			}
 
@@ -308,14 +377,250 @@
 			
 			colors.push(randomRgbColor());
 
+			let timeScore = 0;
+			const getScore = () => {
+				socketMatrix = io('http://game.9pr.ru/matrix');
+				socketMatrix.emit('getScore', (table) => {
+					console.log(table);
+					let scoreTable = `<table><thead><tr><th>Место</th><th>Ник</th><th>Баллы</th></tr></thead><tbody>`;
+						for (let i in table) {
+							scoreTable += `<tr><th>${+i+1}</th><th>${table[i].name}</th><th>${table[i].score}</th></tr>`;
+						}
+						scoreTable += `</tbody></table>`;
+						document.querySelector('#game_matrix_table #table').innerHTML = scoreTable;
+				});
+
+			}
+
+			let canvas;
+	let stage;
+	let container = new Container();
+	let bgImg = new Image();
+	let bg;
+	let leftPlayerImg = new Image();
+	let leftPlayer;
+	let rightPlayerImg = new Image();
+	let rightPlayer;
+	let ballImg = new Image();
+	let ball;
+	let leftPlayerScore;
+	let rightPlayerScore;
+	let xSpeed = 5;
+	let ySpeed = 5;
+	let gfxLoaded = 0;
+	let tkr = new Object;
+	let x = 480*1.5;
+	let y = 320*1.5;
+	let ballSize = 30;
+	let collisionX = 22;
+	let collisionY = 75;
+	let scoreTotal = 3;
+	let side = 'right';
+	function pingPongMain(element) {
+		canvas = element;
+		stage = new Stage(canvas);
+		stage.mouseEventsEnabled = true;
+		bgImg.src = 'pingpong/bg.png';
+		bgImg.name = 'bg';
+		bgImg.onload = loadGfx;
+		leftPlayerImg.src = 'pingpong/paddle.png';
+		leftPlayerImg.name = 'leftPlayer';
+		leftPlayerImg.onload = loadGfx;
+		ballImg.src = 'pingpong/ball.png';
+		ballImg.name = 'ball';
+		ballImg.onload = loadGfx;
+		rightPlayerImg.src = 'pingpong/paddle.png';
+		rightPlayerImg.name = 'rightPlayer';
+		rightPlayerImg.onload = loadGfx;
+		Ticker.setFPS(30);
+		Ticker.addListener(stage);
+		///////////////////////////
+		socketPingPong = io("http://game.9pr.ru/pingpong");
+		socketPingPong.on('connect', () => {
+			socketPingPong.emit("createField", ''+Math.floor(Math.random()*9999999));
+			socketPingPong.on("wait", (body) => {
+				if (Object.keys(body.gamers).length == 1) {
+					leftPlayerWait.online = true;
+					side = 'left';
+				}
+				if (Object.keys(body.gamers).length == 2) {
+					leftPlayerWait.online = true;
+					rightPlayerWait.online = true;
+				}
+				waitGameStart();
+			});
+			socketPingPong.on("getY", (body) => {
+				console.log(body);
+				if (body.gamer !== document.querySelector('#gamer').value) {
+					if (side === 'left') {
+						rightPlayer.y = y - body.y;
+					} else {
+						leftPlayer.y = y - body.y;
+					}
+				}
+			});
+		});
+		/////////////////////////////////////
+	}
+	function loadGfx(e) {
+		if(e.target.name = 'bg'){bg = new Bitmap(bgImg);}
+		if(e.target.name = 'leftPlayer'){leftPlayer = new Bitmap(leftPlayerImg);}
+		if(e.target.name = 'ball'){ball = new Bitmap(ballImg);}
+		if(e.target.name = 'rightPlayer'){rightPlayer = new Bitmap(rightPlayerImg);}
+		gfxLoaded++;
+		if(gfxLoaded == 4) {
+			addGameView();
+		}
+	}
+	function addGameView() {
+		stage.addChild(bg, container);
+		leftPlayer.x = 2;
+		leftPlayer.y = y/2 - collisionY/2;
+		rightPlayer.x = x - 25;
+		rightPlayer.y = y/2 - collisionY/2;
+		ball.x = x/2 - ballSize/2;
+		ball.y = y/2 - ballSize/2;
+		leftPlayerWait = new Text('Ожидание игрока', 'bold 28px Arial', '#A3FF24');
+		leftPlayerWait.maxWidth = 1000;
+		leftPlayerWait.x = 60;
+		leftPlayerWait.y = y/3;
+		leftPlayerWait.online = false;
+		rightPlayerWait = new Text('Ожидание игрока', 'bold 28px Arial', '#A3FF24');
+		rightPlayerWait.maxWidth = 1000;
+		rightPlayerWait.x = x/2+60;
+		rightPlayerWait.y = y/3;
+		rightPlayerWait.online = false;
+		leftPlayerScore = new Text('0', 'bold 28px Arial', '#A3FF24');
+		leftPlayerScore.maxWidth = 1000;
+		leftPlayerScore.x = x/2 - 30;
+		leftPlayerScore.y = 30;
+		rightPlayerScore = new Text('0', 'bold 28px Arial', '#A3FF24');
+		rightPlayerScore.maxWidth = 1000;
+		rightPlayerScore.x = x/2 + 10;
+		rightPlayerScore.y = 30;
+		stage.addChild(leftPlayerWait, rightPlayerWait, leftPlayerScore, rightPlayerScore, leftPlayer, rightPlayer, ball);
+		stage.update();
+	}
+	
+
+
+
+
 			window.onload = () => {
+
+				pingPongMain(document.querySelector('#game_ping_pong'));
+		document.querySelector('#game_ping_pong_start').onclick = () => {
+			document.querySelector('#gamer').disabled = true;
+			document.querySelector('#game_ping_pong_start').disabled = true;
+			socketPingPong.emit('join', {
+				gamer: document.querySelector('#gamer').value,
+			}, (body) => {
+				if (body.error !== undefined) {
+					alert(body.error);
+				}
+			});
+		};
+		////################
+		document.querySelector('#joystick input').addEventListener("input", movePaddle);
+		////################
 				let gameMatrix = new GameMatrix();
 				if (sessionStorage.getItem('game_matrix_round') === null) {
 					sessionStorage.setItem('game_matrix_round', 1);
 				}
 				document.querySelector('#game_matrix #round').innerHTML = `Раунд ${sessionStorage.getItem('game_matrix_round')}`;
 
-				gameMatrix.generateColors(colors).setFindColor(document.querySelector('#game_matrix #find')).generateField().fillField(document.querySelector('#game_matrix #field'));
+				gameMatrix.generateColors(colors).setFindColor(document.querySelector('#game_matrix #find')).shuffleTd().generateField().fillField(document.querySelector('#game_matrix #field'));
+
+				document.querySelector('#game_matrix #start').onclick = () => {
+					if (document.querySelector('#game_matrix #name').value.trim() == '') {
+						return alert('Введите Ваше имя');
+					}
+					
+					const scoreCount = (e) => {
+						console.log(e);
+						if (gameMatrix.find === e.target.style.backgroundColor) {
+							sessionStorage.setItem('game_matrix_score',
+								+sessionStorage.getItem('game_matrix_score') + 1200 + timeScore
+
+							);
+						} else {
+							sessionStorage.setItem('game_matrix_score',
+								+sessionStorage.getItem('game_matrix_score') - 1200 - 800 + timeScore
+
+							);
+						}
+						gameMatrix.shuffleTd().updateField(document.querySelectorAll('#game_matrix #field td'));
+						clearInterval(interval);
+						document.querySelector('#game_matrix #score').innerHTML = `Результат <br> ${sessionStorage.getItem('game_matrix_score')} баллов` ;
+					}
+					socket= io("http://game.9pr.ru/matrix");
+					if (sessionStorage.getItem('game_matrix_score') == null) {
+						sessionStorage.setItem('game_matrix_score', 0); 
+					}
+					document.querySelector('#game_matrix #score').innerHTML = `
+					Результат <br> ${sessionStorage.getItem('game_matrix_score')} баллов
+					`;
+					const timeRound = [0, 5, 5, 5];
+					let timeRemaind = timeRound[sessionStorage.getItem('game_matrix_round')]*1000;
+					document.querySelector('#game_matrix #time').innerHTML = `
+					Ост. время <br> ${sessionStorage.getItem('game_matrix_round')} с.
+					`;
+					timeScore = 800;
+					let interval = setInterval (
+						() => {
+							
+							if (timeRemaind <= 0) {
+								clearInterval(interval);
+							} else {
+								gameMatrix.shuffleTd().updateField(document.querySelectorAll('#game_matrix #field td'));
+							}
+							
+						}, 800
+					);
+					let time = setInterval (
+						() => {
+							timeRemaind -= 10;
+							timeScore -= 10;
+							if (timeRemaind <= 0) {
+								clearInterval(time);
+								document.querySelector('#game_matrix table').removeEventListener('click',scoreCount);
+								document.querySelector('#game_matrix #start').style.display = 'block';
+								document.querySelector('#game_matrix #time').innerHTML ='';
+								if (sessionStorage.getItem('game_matrix_round') < 3) {
+									sessionStorage.setItem('game_matrix_round', +sessionStorage.getItem('game_matrix_round')+1);
+								}
+								else {
+									sessionStorage.setItem('game_matrix_round', 1);
+									socket.emit('sendScore', {
+										name: document.querySelector('#game_matrix #name').
+										value.trim(),
+										score: sessionStorage.getItem('game_matrix_score'),
+									}
+									);
+									sessionStorage.setItem('game_matrix_score', 0);
+									Reveal.next();
+								}
+								document.querySelector('#game_matrix #round').innerHTML = 'Раунд' + sessionStorage.getItem('game_matrix_round');
+							} else {
+								document.querySelector('#game_matrix #start').style.display = 'none';
+								document.querySelector('#game_matrix #time').innerHTML = `
+								Ост. время <br> ${timeRemaind/1000} с.
+								`;
+							}
+						}, 10
+					);
+
+					if (sessionStorage.getItem('game_matrix_round') == 1) {
+						sessionStorage.setItem('game_matrix_round', 0);
+					}
+					document.querySelector('#game_matrix table').addEventListener('click',scoreCount);
+				}
+				getScore();
+				Reveal.on('slidechanged', (e) => {
+					if (e.currentSlide.id == 'game_matrix_table') {
+						getScore();
+					}
+				});
 			}
 		</script>
 	</body>
